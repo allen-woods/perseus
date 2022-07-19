@@ -9,6 +9,32 @@ Before proceeding with this section, you should be familiar with Docker's [multi
 <details>
 <summary>Production example using the size optimizations plugin</summary>
 
+## Building and Running
+
+Save the `Dockerfile` below to a directory of your choice.
+
+To build a container using the `Dockerfile`, navigate to the directory where the `Dockerfile` was saved and use a`docker` command similar to the following:
+
+```shellscript
+docker buildx build --no-cache \
+--build-arg PERSEUS_VERSION=0.3.5 \
+--build-arg PERSEUS_SIZE_OPT_VERSION=0.1.9 \
+--tag="my-perseus-example:0.1.0" \
+-f Dockerfile .
+```
+
+To run your newly built container, use the following command:
+
+```shellscript
+docker run --init -p 80:8080 my-perseus-example:0.1.0
+```
+
+Point your browser to `localhost` to interact with the app !
+
+---
+
+## Dockerfile
+
 ```dockerfile
 # Pull base image.
 FROM rust:1.57-slim AS base
@@ -25,8 +51,8 @@ ARG PERSEUS_VERSION \
   CARGO_NET_GIT_FETCH_WITH_CLI
 
 # Export environment variables.
-ENV PERSEUS_VERSION=${PERSEUS_VERSION:-0.3.5} \
-  PERSEUS_SIZE_OPT_VERSION=${PERSEUS_SIZE_OPT_VERSION:-0.1.9} \
+ENV PERSEUS_VERSION=${PERSEUS_VERSION:-0.3.0} \
+  PERSEUS_SIZE_OPT_VERSION=${PERSEUS_SIZE_OPT_VERSION:-0.1.7} \
   SYCAMORE_VERSION=${SYCAMORE_VERSION:-0.7.1} \
   BINARYEN_VERSION=${BINARYEN_VERSION:-104} \
   ESBUILD_VERSION=${ESBUILD_VERSION:-0.14.7} \
@@ -61,7 +87,7 @@ FROM base as binaryen
 WORKDIR /binaryen
 
 # Download, extract, and remove compressed tar of `binaryen`.
-RUN curl -L#o binaryen-${BINARYEN_VERSION}.tar.gz \
+RUN curl --progress-bar -Lo binaryen-${BINARYEN_VERSION}.tar.gz \
   https://github.com/WebAssembly/binaryen/releases/download/version_${BINARYEN_VERSION}/binaryen-version_${BINARYEN_VERSION}-x86_64-linux.tar.gz \
   && tar --strip-components=1 -xzf binaryen-${BINARYEN_VERSION}.tar.gz \
   && rm -f binaryen-${BINARYEN_VERSION}.tar.gz
@@ -73,7 +99,7 @@ FROM base as esbuild
 WORKDIR /esbuild
 
 # Download, extract, and remove compressed tar of `esbuild`.
-RUN curl -L#o esbuild-${ESBUILD_VERSION}.tar.gz \
+RUN curl --progress-bar -Lo esbuild-${ESBUILD_VERSION}.tar.gz \
   https://registry.npmjs.org/esbuild-linux-64/-/esbuild-linux-64-${ESBUILD_VERSION}.tgz \
   && tar --strip-components=1 -xzf esbuild-${ESBUILD_VERSION}.tar.gz \
   && rm -f esbuild-${ESBUILD_VERSION}.tar.gz
@@ -85,7 +111,7 @@ FROM base as perseus-size-opt
 WORKDIR /perseus-size-opt
 
 # Download and make adjustments to the source of `perseus-size-opt`.
-RUN curl -L# https://codeload.github.com/arctic-hen7/perseus-size-opt/tar.gz/v${PERSEUS_SIZE_OPT_VERSION} \
+RUN curl --progress-bar -L https://codeload.github.com/arctic-hen7/perseus-size-opt/tar.gz/v${PERSEUS_SIZE_OPT_VERSION} \
   | tar -xz --strip-components=1 \
   && rm -rf ./examples \
   && sed -i "s|^\(perseus =\).*$|\1 { path = \\\"/perseus/packages/perseus\\\" }|;" ./Cargo.toml \
@@ -116,7 +142,7 @@ FROM base as framework
 WORKDIR /perseus
 
 # Download and make adjustments to the codebase of the framework.
-RUN curl -L# https://codeload.github.com/arctic-hen7/perseus/tar.gz/v${PERSEUS_VERSION} \
+RUN curl --progress-bar -L https://codeload.github.com/arctic-hen7/perseus/tar.gz/v${PERSEUS_VERSION} \
   | tar -xz --strip-components=1 \
   && sed -i "\
   s|\(println!.*\)$|// \1|; \

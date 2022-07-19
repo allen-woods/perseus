@@ -184,7 +184,7 @@ COPY --from=perseus-size-opt /perseus-size-opt/ /perseus-size-opt/
 # Work from the root of the package.
 WORKDIR /perseus/packages/perseus-cli
 
-# Compile the release profile of package `perseus-cli`.
+# Compile the release binary target of package `perseus-cli`.
 RUN cargo build --bin perseus --release
 
 # Create a build stage for building our app.

@@ -13,7 +13,7 @@ Before proceeding with this section, you should be familiar with Docker's [multi
 
 Save the `Dockerfile` below to a directory of your choice.
 
-To build a container using the `Dockerfile`, navigate to the directory where the `Dockerfile` was saved and use a`docker` command similar to the following:
+To build a container using the `Dockerfile`, navigate to the directory where the `Dockerfile` was saved and use a `docker` command similar to the following:
 
 ```shellscript
 docker buildx build --no-cache \
@@ -197,7 +197,7 @@ RUN curl --progress-bar -L https://codeload.github.com/arctic-hen7/perseus/tar.g
   && sed -i "s|^\(sycamore =\).*$|\1 \"=${SYCAMORE_VERSION}\"|" \
   ./examples/core/basic/Cargo.toml \
   && sed -i "\
-  s|^\(sycamore =\).*$|\1 { version = \\\"=${SYCAMORE_VERSION}\\\", features = [ \\\"ssr\\\" ] }|;
+  s|^\(sycamore =\).*$|\1 { version = \\\"=${SYCAMORE_VERSION}\\\", features = [ \\\"ssr\\\" ] }|; \
   s|^\(sycamore-router =\).*$|\1 \\\"=${SYCAMORE_VERSION}\\\"|;" \
   ./examples/core/basic/.perseus/Cargo.toml
 

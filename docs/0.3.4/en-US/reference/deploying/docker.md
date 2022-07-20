@@ -155,8 +155,10 @@ RUN curl --progress-bar -L https://codeload.github.com/arctic-hen7/perseus/tar.g
   s|PERSEUS_WARP_VERSION|path = \\\\\"/perseus/packages/perseus-warp\\\\\"|g;" \
   ./packages/perseus-cli/build.rs \
   && sed -i "\
-  s|^\(perseus = {\) \(.*\) \(}\)$|\1 \2, features = \[ \"hydrate\" \] \3|; \
-  s|^\(sycamore =\).*$|\1 \"=${SYCAMORE_VERSION}\"|; \
+  s|^\(perseus = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${PERSEUS_VERSION}\3|g; \
+  s|^\(perseus = { version = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${PERSEUS_VERSION}\3|g; \
+  s|^\(sycamore = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
+  s|^\(sycamore = { version = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
   " ./examples/comprehensive/tiny/Cargo.toml \
   && printf '%s\n' \
   'perseus-size-opt = { path = "/perseus-size-opt" }' >> ./examples/comprehensive/tiny/Cargo.toml \
@@ -196,12 +198,16 @@ RUN curl --progress-bar -L https://codeload.github.com/arctic-hen7/perseus/tar.g
   '                )' \
   '        )' \
   '}' > ./examples/comprehensive/tiny/src/lib.rs \
-  && sed -i "s|^\(sycamore =\).*$|\1 \"=${SYCAMORE_VERSION}\"|" \
-  ./examples/core/basic/Cargo.toml \
   && sed -i "\
-  s|^\(sycamore =\).*$|\1 { version = \\\"=${SYCAMORE_VERSION}\\\", features = [ \\\"ssr\\\" ] }|; \
-  s|^\(sycamore-router =\).*$|\1 \\\"=${SYCAMORE_VERSION}\\\"|;" \
-  ./examples/core/basic/.perseus/Cargo.toml
+  s|^\(sycamore = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
+  s|^\(sycamore = { version = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
+  " ./examples/core/basic/Cargo.toml \
+  && sed -i "\
+  s|^\(sycamore = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
+  s|^\(sycamore = { version = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
+  s|^\(sycamore-router = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
+  s|^\(sycamore-router = { version = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
+  " ./examples/core/basic/.perseus/Cargo.toml
 
 # Create a build stage for `perseus-cli` that we can run in parallel.
 FROM framework as perseus-cli
@@ -383,19 +389,24 @@ RUN curl --progress-bar -L https://codeload.github.com/arctic-hen7/perseus/tar.g
   s|PERSEUS_WARP_VERSION|path = \\\\\"/perseus/packages/perseus-warp\\\\\"|g;" \
   ./packages/perseus-cli/build.rs \
   && sed -i "\
-  s|^\(sycamore =\).*$|\1 \"=${SYCAMORE_VERSION}\"|; \
+  s|^\(sycamore = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
+  s|^\(sycamore = { version = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
   s|\(\[dependencies\]\)$|\1\nwee_alloc = \"=${WEE_ALLOC_VERSION}\"|; \
   " ./examples/core/state_generation/Cargo.toml \
   && sed -i "1i \
   #[global_allocator]\n\
-  static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;\n" \
-  ./examples/core/state_generation/src/lib.rs \
-  && sed -i "s|^\(sycamore =\).*$|\1 \"=${SYCAMORE_VERSION}\"|" \
-  ./examples/core/basic/Cargo.toml \
+  static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;\n\
+  " ./examples/core/state_generation/src/lib.rs \
   && sed -i "\
-  s|^\(sycamore =\).*$|\1 { version = \\\"=${SYCAMORE_VERSION}\\\", features = [ \\\"ssr\\\" ] }|; \
-  s|^\(sycamore-router =\).*$|\1 \\\"=${SYCAMORE_VERSION}\\\"|;" \
-  ./examples/core/basic/.perseus/Cargo.toml \
+  s|^\(sycamore = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
+  s|^\(sycamore = { version = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
+  " ./examples/core/basic/Cargo.toml \
+  && sed -i "\
+  s|^\(sycamore = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
+  s|^\(sycamore = { version = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
+  s|^\(sycamore-router = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
+  s|^\(sycamore-router = { version = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
+  " ./examples/core/basic/.perseus/Cargo.toml \
   && printf '%s\n' \
   '' '' \
   '[profile.release]' \

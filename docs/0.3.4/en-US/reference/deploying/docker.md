@@ -29,7 +29,7 @@ To run your newly built container, use the following command:
 docker run --init -p 80:8080 my-perseus-example:0.1.0
 ```
 
-Point your browser to `localhost` to interact with the app !
+Point your browser to `localhost` to interact with the app! To stop the server, press `Ctrl+C` in your terminal.
 
 ---
 

@@ -40,7 +40,9 @@ Point your browser to `localhost` to interact with the app! To stop the server, 
 FROM rust:1.57-slim AS base
 
 # Define optional command-line build arguments we can pass to docker.
-ARG PERSEUS_VERSION \
+ARG EXAMPLE_CATEGORY \
+  EXAMPLE_NAME \
+  PERSEUS_VERSION \
   PERSEUS_SIZE_OPT_VERSION \
   SYCAMORE_VERSION \
   BINARYEN_VERSION \
@@ -52,8 +54,10 @@ ARG PERSEUS_VERSION \
   CARGO_NET_GIT_FETCH_WITH_CLI
 
 # Export environment variables.
-ENV PERSEUS_VERSION=${PERSEUS_VERSION:-0.3.0} \
-  PERSEUS_SIZE_OPT_VERSION=${PERSEUS_SIZE_OPT_VERSION:-0.1.7} \
+ENV EXAMPLE_CATEGORY=${EXAMPLE_CATEGORY:-comprehensive} \
+  EXAMPLE_NAME=${EXAMPLE_NAME:-tiny} \
+  PERSEUS_VERSION=${PERSEUS_VERSION:-0.3.4} \
+  PERSEUS_SIZE_OPT_VERSION=${PERSEUS_SIZE_OPT_VERSION:-0.1.8} \
   SYCAMORE_VERSION=${SYCAMORE_VERSION:-0.7.1} \
   BINARYEN_VERSION=${BINARYEN_VERSION:-104} \
   ESBUILD_VERSION=${ESBUILD_VERSION:-0.14.7} \
@@ -159,10 +163,10 @@ RUN curl --progress-bar -L https://codeload.github.com/arctic-hen7/perseus/tar.g
   s|^\(perseus = { version = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${PERSEUS_VERSION}\3|g; \
   s|^\(sycamore = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
   s|^\(sycamore = { version = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
-  " ./examples/comprehensive/tiny/Cargo.toml \
+  " ./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/Cargo.toml \
   && printf '%s\n' \
-  'perseus-size-opt = { path = "/perseus-size-opt" }' >> ./examples/comprehensive/tiny/Cargo.toml \
-  && rm -f ./examples/comprehensive/tiny/src/lib.rs \
+  'perseus-size-opt = { path = "/perseus-size-opt" }' >> ./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/Cargo.toml \
+  && rm -f ./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/src/lib.rs \
   && printf '%s\n' \
   'use perseus::{ErrorPages, Html, PerseusApp, Plugins, Template};' \
   'use sycamore::view;' \
@@ -197,7 +201,7 @@ RUN curl --progress-bar -L https://codeload.github.com/arctic-hen7/perseus/tar.g
   '                    }' \
   '                )' \
   '        )' \
-  '}' > ./examples/comprehensive/tiny/src/lib.rs \
+  '}' > ./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/src/lib.rs \
   && sed -i "\
   s|^\(sycamore = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
   s|^\(sycamore = { version = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
@@ -291,12 +295,40 @@ CMD ["./server"]
 <details>
 <summary>Production examples using `wee_alloc` manually</summary>
 
+## Building and Running
+
+Save the `Dockerfile` below to a directory of your choice.
+
+To build a container using the `Dockerfile`, navigate to the directory where the `Dockerfile` was saved and use a `docker` command similar to the following:
+
+```shellscript
+docker buildx build --no-cache \
+--build-arg PERSEUS_VERSION=0.3.5 \
+--build-arg PERSEUS_SIZE_OPT_VERSION=0.1.9 \
+--tag="my-perseus-example:0.1.0" \
+-f Dockerfile .
+```
+
+To run your newly built container, use the following command:
+
+```shellscript
+docker run --init -p 80:8080 my-perseus-example:0.1.0
+```
+
+Point your browser to `localhost` to interact with the app! To stop the server, press `Ctrl+C` in your terminal.
+
+---
+
+## Dockerfile
+
 ```dockerfile
 # Pull the base image.
 FROM rust:1.57-slim AS base
 
 # Define optional command-line build arguments we can pass to docker.
-ARG PERSEUS_VERSION \
+ARG EXAMPLE_CATEGORY \
+  EXAMPLE_NAME \
+  PERSEUS_VERSION \
   SYCAMORE_VERSION \
   WEE_ALLOC_VERSION \
   BINARYEN_VERSION \
@@ -308,7 +340,9 @@ ARG PERSEUS_VERSION \
   CARGO_NET_GIT_FETCH_WITH_CLI
 
 # Export environment variables.
-ENV PERSEUS_VERSION=${PERSEUS_VERSION:-0.3.0} \
+ENV EXAMPLE_CATEGORY=${EXAMPLE_CATEGORY:-core} \
+  EXAMPLE_NAME=${EXAMPLE_NAME:-state_generation} \
+  PERSEUS_VERSION=${PERSEUS_VERSION:-0.3.4} \
   SYCAMORE_VERSION=${SYCAMORE_VERSION:-0.7.1} \
   WEE_ALLOC_VERSION=${WEE_ALLOC_VERSION:-0.4.5} \
   BINARYEN_VERSION=${BINARYEN_VERSION:-104} \
@@ -392,11 +426,11 @@ RUN curl --progress-bar -L https://codeload.github.com/arctic-hen7/perseus/tar.g
   s|^\(sycamore = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
   s|^\(sycamore = { version = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
   s|\(\[dependencies\]\)$|\1\nwee_alloc = \"=${WEE_ALLOC_VERSION}\"|; \
-  " ./examples/core/state_generation/Cargo.toml \
+  " ./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/Cargo.toml \
   && sed -i "1i \
   #[global_allocator]\n\
   static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;\n\
-  " ./examples/core/state_generation/src/lib.rs \
+  " ./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/src/lib.rs \
   && sed -i "\
   s|^\(sycamore = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
   s|^\(sycamore = { version = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \

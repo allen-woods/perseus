@@ -169,42 +169,38 @@ RUN curl --progress-bar -L https://codeload.github.com/arctic-hen7/perseus/tar.g
   " ./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/Cargo.toml \
   && printf '%s\n' \
   'perseus-size-opt = { path = "/perseus-size-opt" }' >> ./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/Cargo.toml \
-  && rm -f ./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/src/lib.rs \
+
+  # We must create a shell script here that performs the steps outlined in Quiver.
   && printf '%s\n' \
-  'use perseus::{ErrorPages, Html, PerseusApp, Plugins, Template};' \
-  'use sycamore::view;' \
-  '' \
-  'use perseus_size_opt::{perseus_size_opt, SizeOpts};' \
-  '' \
-  '#[perseus::main]' \
-  'pub fn main<G: Html>() -> PerseusApp<G> {' \
-  '    PerseusApp::new()' \
-  '        .template(|| {' \
-  '            Template::new("index").template(|_| {' \
-  '                view! {' \
-  '                    p { "Hello World!" }' \
-  '                }' \
-  '            })' \
-  '        })' \
-  '        .error_pages(|| ErrorPages::new(|url, status, err, _| {' \
-  '            view! {' \
-  "                p { (format!(\"An error with HTTP code {} occurred at '{}': '{}'.\", status, url, err)) }" \
-  '            }' \
-  '        }))' \
-  '        .plugins(' \
-  '            Plugins::new()' \
-  '                .plugin(' \
-  '                    perseus_size_opt,' \
-  '                    SizeOpts {' \
-  '                        wee_alloc: true,' \
-  '                        lto: true,' \
-  '                        opt_level: "s".to_string(),' \
-  '                        codegen_units: 1,' \
-  '                        enable_fluent_bundle_patch: false,' \
-  '                    }' \
-  '                )' \
-  '        )' \
-  '}' > ./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/src/lib.rs \
+  '#!/bin/sh' \
+  'patch_lib_rs () {' \
+  '  local file_path=./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/src/lib.rs' \
+  '  local pad="\ \ \ \ "' \
+  '  local use_line=$( grep -ne "^use perseus.*$" $file_path | grep -Eo "^[^:]+" )' \
+  '  local end_line=$( grep -ne "^}$" $file_path | grep -Eo "^[^:]+" )' \
+  '  local has_plugins=$( grep -ne "^use.*Plugins[,]\{0,\}.*;$" $file_path )' \
+  '  if [ -z "${has_plugins}" ]' \
+  '  then' \
+  '    sed -i "${use_line}s|^\(use perseus::{\)\(.*\)\(};\)|\1\2, Plugins\3" $file_path' \
+  '  fi' \
+  '  sed -i "${use_line}a use perseus_size_opt::{perseus_size_opt, SizeOpts};" $file_path' \
+  '  sed -i "${end_line}i \
+  ${pad}${pad}.plugins(\n\
+  ${pad}${pad}${pad}Plugins::new()\n\
+  ${pad}${pad}${pad}${pad}.plugin(\n\
+  ${pad}${pad}${pad}${pad}${pad}perseus_size_opt,\n\
+  ${pad}${pad}${pad}${pad}${pad}SizeOpts {\n\
+  ${pad}${pad}${pad}${pad}${pad}${pad}codegen_units: 1,\n\
+  ${pad}${pad}${pad}${pad}${pad}${pad}enable_fluent_bundle_patch: false,\n\
+  ${pad}${pad}${pad}${pad}${pad}${pad}lto: true,\n\
+  ${pad}${pad}${pad}${pad}${pad}${pad}opt_level: \"s\".to_string(),\n\
+  ${pad}${pad}${pad}${pad}${pad}${pad}wee_alloc: true,\n\
+  ${pad}${pad}${pad}${pad}${pad}}\n\
+  ${pad}${pad}${pad}${pad})\n\
+  ${pad}${pad})" $file_path' \
+  '}' \
+  'patch_lib_rs' > ./patch_lib_rs.sh \
+  && chmod +x ./patch_lib_rs.sh && . ./patch_lib_rs.sh && rm -f ./patch_lib_rs.sh \
   && sed -i "\
   s|^\(sycamore = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
   s|^\(sycamore = { version = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \

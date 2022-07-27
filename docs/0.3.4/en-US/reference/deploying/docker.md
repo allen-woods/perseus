@@ -85,6 +85,7 @@ RUN apt-get update \
   lsb-release \
   openssl \
   pkg-config \
+  shellcheck \
   && rustup install ${RUST_RELEASE_CHANNEL} \
   && rustup default ${RUST_RELEASE_CHANNEL} \
   && rustup target add ${WASM_TARGET}
@@ -169,37 +170,63 @@ RUN curl --progress-bar -L https://codeload.github.com/arctic-hen7/perseus/tar.g
   " ./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/Cargo.toml \
   && printf '%s\n' \
   'perseus-size-opt = { path = "/perseus-size-opt" }' >> ./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/Cargo.toml \
-
-  # We must create a shell script here that performs the steps outlined in Quiver.
   && printf '%s\n' \
   '#!/bin/sh' \
+  '' \
   'patch_lib_rs () {' \
-  '  local file_path=./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/src/lib.rs' \
-  '  local pad="\ \ \ \ "' \
-  '  local use_line=$( grep -ne "^use perseus.*$" $file_path | grep -Eo "^[^:]+" )' \
-  '  local end_line=$( grep -ne "^}$" $file_path | grep -Eo "^[^:]+" )' \
-  '  local has_plugins=$( grep -ne "^use.*Plugins[,]\{0,\}.*;$" $file_path )' \
-  '  if [ -z "${has_plugins}" ]' \
-  '  then' \
-  '    sed -i "${use_line}s|^\(use perseus::{\)\(.*\)\(};\)|\1\2, Plugins\3" $file_path' \
-  '  fi' \
-  '  sed -i "${use_line}a use perseus_size_opt::{perseus_size_opt, SizeOpts};" $file_path' \
-  '  sed -i "${end_line}i \
-  ${pad}${pad}.plugins(\n\
-  ${pad}${pad}${pad}Plugins::new()\n\
-  ${pad}${pad}${pad}${pad}.plugin(\n\
-  ${pad}${pad}${pad}${pad}${pad}perseus_size_opt,\n\
-  ${pad}${pad}${pad}${pad}${pad}SizeOpts {\n\
-  ${pad}${pad}${pad}${pad}${pad}${pad}codegen_units: 1,\n\
-  ${pad}${pad}${pad}${pad}${pad}${pad}enable_fluent_bundle_patch: false,\n\
-  ${pad}${pad}${pad}${pad}${pad}${pad}lto: true,\n\
-  ${pad}${pad}${pad}${pad}${pad}${pad}opt_level: \"s\".to_string(),\n\
-  ${pad}${pad}${pad}${pad}${pad}${pad}wee_alloc: true,\n\
-  ${pad}${pad}${pad}${pad}${pad}}\n\
-  ${pad}${pad}${pad}${pad})\n\
-  ${pad}${pad})" $file_path' \
+  '   local file_path=./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/src/lib.rs' \
+  '   local pad="\ \ \ \ "' \
+  '   local use_line=$( grep -ne "^use perseus.*$" $file_path | grep -Eo "^[^:]+" )' \
+  '   local err_line=$( grep -ne "^.*\.error_pages(.*)$" $file_path | grep -Eo "^[^:]+" )' \
+  '   local end_line=' \
+  '   local has_errors=$( grep -ne "^use.*ErrorPages[,]\{0,\}.*;$" $file_path )' \
+  '   local has_plugins=$( grep -ne "^use.*Plugins[,]\{0,\}.*;$" $file_path )' \
+  '   local has_sycamore=$( grep -ne "^use sycamore.*$" $file_path )' \
+  '   if [ -z "${has_errors}" ] && [ ! -z "${err_line}" ]' \
+  '   then' \
+  '     sed -i "${use_line}s|^\(use perseus::{\)\(.*\)\(};\)|\1ErrorPages, \2\3|" $file_path' \
+  '     sed -i "${err_line}d" $file_path' \
+  '     sed -i "$(( $err_line - 1 ))a \
+        ${pad}${pad}.error_pages(\|\| ErrorPages::new(\|url, status, err, _\| {\n\
+        ${pad}${pad}${pad}view\! {\n\
+        ${pad}${pad}${pad}${pad}p {\n\
+        ${pad}${pad}${pad}${pad}${pad}(format\!(\n\
+        ${pad}${pad}${pad}${pad}${pad}${pad}\"An error with HTTP code {} occured at \'{}\': \'{}\'.\",\n\
+        ${pad}${pad}${pad}${pad}${pad}${pad}status,\n\
+        ${pad}${pad}${pad}${pad}${pad}${pad}url,\n\
+        ${pad}${pad}${pad}${pad}${pad}${pad}err\n\
+        ${pad}${pad}${pad}${pad}${pad}))\n\
+        ${pad}${pad}${pad}${pad}}\n\
+        ${pad}${pad}${pad}}\n\
+        ${pad${pad}}))" $file_path' \
+  '   fi' \
+  '   if [ -z "${has_plugins}" ]' \
+  '   then' \
+  '     sed -i "${use_line}s|^\(use perseus::{\)\(.*\)\(};\)|\1\2, Plugins\3|" $file_path' \
+  '     end_line=$( grep -ne "^}$" $file_path | grep -Eo "^[^:]+" )' \
+  '     sed -i "${end_line}i \
+        ${pad}${pad}.plugins(\n\
+        ${pad}${pad}${pad}Plugins::new()\n\
+        ${pad}${pad}${pad}${pad}.plugin(\n\
+        ${pad}${pad}${pad}${pad}${pad}perseus_size_opt,\n\
+        ${pad}${pad}${pad}${pad}${pad}SizeOpts {\n\
+        ${pad}${pad}${pad}${pad}${pad}${pad}codegen_units: 1,\n\
+        ${pad}${pad}${pad}${pad}${pad}${pad}enable_fluent_bundle_patch: false,\n\
+        ${pad}${pad}${pad}${pad}${pad}${pad}lto: true,\n\
+        ${pad}${pad}${pad}${pad}${pad}${pad}opt_level: \"s\".to_string(),\n\
+        ${pad}${pad}${pad}${pad}${pad}${pad}wee_alloc: true,\n\
+        ${pad}${pad}${pad}${pad}${pad}}\n\
+        ${pad}${pad}${pad}${pad})\n\
+        ${pad}${pad})" $file_path' \
+  '   fi' \
+  '   if [ -z "${has_sycamore}" ]' \
+  '   then' \
+  '     sed -i "${use_line}a use sycamore::view;" $file_path' \
+  '   fi' \
+  '   sed -i "${use_line}a use perseus_size_opt::{perseus_size_opt, SizeOpts};" $file_path' \
   '}' \
   'patch_lib_rs' > ./patch_lib_rs.sh \
+  && shellcheck ./patch_lib_rs.sh \
   && chmod +x ./patch_lib_rs.sh && . ./patch_lib_rs.sh && rm -f ./patch_lib_rs.sh \
   && sed -i "\
   s|^\(sycamore = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \

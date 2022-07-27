@@ -85,7 +85,6 @@ RUN apt-get update \
   lsb-release \
   openssl \
   pkg-config \
-  shellcheck \
   && rustup install ${RUST_RELEASE_CHANNEL} \
   && rustup default ${RUST_RELEASE_CHANNEL} \
   && rustup target add ${WASM_TARGET}
@@ -151,6 +150,8 @@ FROM base as framework
 # Work from the root of the codebase.
 WORKDIR /perseus
 
+# COPY ./sh/patch_lib_rs.sh .
+
 # Download and make adjustments to the codebase of the framework.
 RUN curl --progress-bar -L https://codeload.github.com/arctic-hen7/perseus/tar.gz/v${PERSEUS_VERSION} \
   | tar -xz --strip-components=1 \
@@ -162,82 +163,111 @@ RUN curl --progress-bar -L https://codeload.github.com/arctic-hen7/perseus/tar.g
   s|PERSEUS_ACTIX_WEB_VERSION|path = \\\\\"/perseus/packages/perseus-actix-web\\\\\"|g; \
   s|PERSEUS_WARP_VERSION|path = \\\\\"/perseus/packages/perseus-warp\\\\\"|g;" \
   ./packages/perseus-cli/build.rs \
+  && echo "* * SED 1 * *" \
+  && cat -n ./packages/perseus-cli/build.rs \
   && sed -i "\
-  s|^\(perseus = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${PERSEUS_VERSION}\3|g; \
-  s|^\(perseus = { version = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${PERSEUS_VERSION}\3|g; \
-  s|^\(sycamore = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
-  s|^\(sycamore = { version = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
-  " ./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/Cargo.toml \
-  && printf '%s\n' \
-  'perseus-size-opt = { path = "/perseus-size-opt" }' >> ./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/Cargo.toml \
+  s|^\(perseus = \"\)\([\^0-9\.beta-]\{3,\}\)\(.*\)$|\1=${PERSEUS_VERSION}\3|g; \
+  s|^\(perseus = { version = \"\)\([\^0-9\.beta-]\{3,\}\)\(.*\)$|\1=${PERSEUS_VERSION}\3|g; \
+  s|^\(sycamore = \"\)\([\^0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
+  s|^\(sycamore = { version = \"\)\([\^0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g;" \
+  ./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/Cargo.toml \
+  && echo "* * SED 2 * *" \
+  && cat -n ./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/Cargo.toml \
+  && sed -i "s|^\(\[dependencies\]\)$|\1\nperseus-size-opt = { path = \"/perseus-size-opt\" }|" \
+  ./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/Cargo.toml \
+  && echo "* * SED 3 * *" \
+  && cat -n ./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/Cargo.toml \
   && printf '%s\n' \
   '#!/bin/sh' \
   '' \
   'patch_lib_rs () {' \
-  '   local file_path=./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/src/lib.rs' \
-  '   local pad="\ \ \ \ "' \
-  '   local use_line=$( grep -ne "^use perseus.*$" $file_path | grep -Eo "^[^:]+" )' \
-  '   local err_line=$( grep -ne "^.*\.error_pages(.*)$" $file_path | grep -Eo "^[^:]+" )' \
-  '   local end_line=' \
-  '   local has_errors=$( grep -ne "^use.*ErrorPages[,]\{0,\}.*;$" $file_path )' \
-  '   local has_plugins=$( grep -ne "^use.*Plugins[,]\{0,\}.*;$" $file_path )' \
-  '   local has_sycamore=$( grep -ne "^use sycamore.*$" $file_path )' \
-  '   if [ -z "${has_errors}" ] && [ ! -z "${err_line}" ]' \
+  '   local file_path' \
+  '   file_path=./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/src/lib.rs' \
+  '   local pad' \
+  '   pad="\ \ \ \ "' \
+  '   local mod_line' \
+  '   mod_line=$( grep -ne "^mod error_pages;$" "${file_path}" | grep -Eo "^[^:]+" )' \
+  '   local use_line' \
+  '   use_line=$( grep -ne "^use perseus.*$" "${file_path}" | grep -Eo "^[^:]+" )' \
+  '   local err_line' \
+  '   err_line=$( grep -ne "^.*\.error_pages(.*)$" "${file_path}" | grep -Eo "^[^:]+" )' \
+  '   local end_line' \
+  '   local has_errors' \
+  '   has_errors=$( grep -ne "^use.*ErrorPages[,]\{0,\}.*;$" "${file_path}" )' \
+  '   local has_plugins' \
+  '   has_plugins=$( grep -ne "^use.*Plugins[,]\{0,\}.*;$" "${file_path}" )' \
+  '   local has_sycamore' \
+  '   has_sycamore=$( grep -ne "^use sycamore.*$" "${file_path}" )' \
+  '' \
+  '   if [ -z "${has_errors}" ] && [ -n "${err_line}" ]' \
   '   then' \
-  '     sed -i "${use_line}s|^\(use perseus::{\)\(.*\)\(};\)|\1ErrorPages, \2\3|" $file_path' \
-  '     sed -i "${err_line}d" $file_path' \
-  '     sed -i "$(( $err_line - 1 ))a \
-        ${pad}${pad}.error_pages(\|\| ErrorPages::new(\|url, status, err, _\| {\n\
-        ${pad}${pad}${pad}view\! {\n\
-        ${pad}${pad}${pad}${pad}p {\n\
-        ${pad}${pad}${pad}${pad}${pad}(format\!(\n\
-        ${pad}${pad}${pad}${pad}${pad}${pad}\"An error with HTTP code {} occured at \'{}\': \'{}\'.\",\n\
-        ${pad}${pad}${pad}${pad}${pad}${pad}status,\n\
-        ${pad}${pad}${pad}${pad}${pad}${pad}url,\n\
-        ${pad}${pad}${pad}${pad}${pad}${pad}err\n\
-        ${pad}${pad}${pad}${pad}${pad}))\n\
-        ${pad}${pad}${pad}${pad}}\n\
-        ${pad}${pad}${pad}}\n\
-        ${pad${pad}}))" $file_path' \
+  '     sed -i "${use_line}s|^\(use perseus::{\)\(.*\)\(};\)|\1ErrorPages, \2\3|" "${file_path}"' \
+  '     sed -i "${err_line}d" "${file_path}"' \
+  '     sed -i "$(( $err_line - 1 ))a \\ ' \
+  '     ${pad}.error_pages\(|| ErrorPages::new\(|url, status, err, _| { \\ ' \
+  '     ${pad}${pad}view! { \\ ' \
+  '     ${pad}${pad}${pad}p { \\ ' \
+  '     ${pad}${pad}${pad}${pad}\(format!\( \\ ' \
+  '     ${pad}${pad}${pad}${pad}${pad}\"An error with HTTP code {} occured at {}: {}.\", \\ ' \
+  '     ${pad}${pad}${pad}${pad}${pad}status, \\ ' \
+  '     ${pad}${pad}${pad}${pad}${pad}url, \\ ' \
+  '     ${pad}${pad}${pad}${pad}${pad}err \\ ' \
+  '     ${pad}${pad}${pad}${pad}\)\) \\ ' \
+  '     ${pad}${pad}${pad}} \\ ' \
+  '     ${pad}${pad}} \\ ' \
+  '     ${pad}}\)\)" "${file_path}"' \
   '   fi' \
+  '' \
   '   if [ -z "${has_plugins}" ]' \
   '   then' \
-  '     sed -i "${use_line}s|^\(use perseus::{\)\(.*\)\(};\)|\1\2, Plugins\3|" $file_path' \
-  '     end_line=$( grep -ne "^}$" $file_path | grep -Eo "^[^:]+" )' \
-  '     sed -i "${end_line}i \
-        ${pad}${pad}.plugins(\n\
-        ${pad}${pad}${pad}Plugins::new()\n\
-        ${pad}${pad}${pad}${pad}.plugin(\n\
-        ${pad}${pad}${pad}${pad}${pad}perseus_size_opt,\n\
-        ${pad}${pad}${pad}${pad}${pad}SizeOpts {\n\
-        ${pad}${pad}${pad}${pad}${pad}${pad}codegen_units: 1,\n\
-        ${pad}${pad}${pad}${pad}${pad}${pad}enable_fluent_bundle_patch: false,\n\
-        ${pad}${pad}${pad}${pad}${pad}${pad}lto: true,\n\
-        ${pad}${pad}${pad}${pad}${pad}${pad}opt_level: \"s\".to_string(),\n\
-        ${pad}${pad}${pad}${pad}${pad}${pad}wee_alloc: true,\n\
-        ${pad}${pad}${pad}${pad}${pad}}\n\
-        ${pad}${pad}${pad}${pad})\n\
-        ${pad}${pad})" $file_path' \
+  '     sed -i "${use_line}s|^\(use perseus::{\)\(.*\)\(};\)|\1\2, Plugins\3|" "${file_path}"' \
+  '     end_line=$( grep -ne "^}\$" "${file_path}" | grep -Eo "^[^:]+" )' \
+  '     sed -i "${end_line}i \\ ' \
+  '     ${pad}.plugins\( \\ ' \
+  '     ${pad}${pad}Plugins::new\(\) \\ ' \
+  '     ${pad}${pad}${pad}.plugin\( \\ ' \
+  '     ${pad}${pad}${pad}${pad}perseus_size_opt, \\ ' \
+  '     ${pad}${pad}${pad}${pad}SizeOpts { \\ ' \
+  '     ${pad}${pad}${pad}${pad}${pad}codegen_units: 1, \\ ' \
+  '     ${pad}${pad}${pad}${pad}${pad}enable_fluent_bundle_patch: false, \\ ' \
+  '     ${pad}${pad}${pad}${pad}${pad}lto: true, \\ ' \
+  '     ${pad}${pad}${pad}${pad}${pad}opt_level: \"s\".to_string\(\), \\ ' \
+  '     ${pad}${pad}${pad}${pad}${pad}wee_alloc: true, \\ ' \
+  '     ${pad}${pad}${pad}${pad}} \\ ' \
+  '     ${pad}${pad}${pad}\) \\ ' \
+  '     ${pad}\)" "${file_path}"' \
   '   fi' \
+  '' \
   '   if [ -z "${has_sycamore}" ]' \
   '   then' \
-  '     sed -i "${use_line}a use sycamore::view;" $file_path' \
+  '     sed -i "${use_line}a use sycamore::view;" "${file_path}"' \
   '   fi' \
-  '   sed -i "${use_line}a use perseus_size_opt::{perseus_size_opt, SizeOpts};" $file_path' \
+  '' \
+  '   sed -i "${use_line}a use perseus_size_opt::{perseus_size_opt, SizeOpts};" "${file_path}"' \
+  '   sed -i "${mod_line}d" "${file_path}"' \
   '}' \
+  '' \
   'patch_lib_rs' > ./patch_lib_rs.sh \
-  && shellcheck ./patch_lib_rs.sh \
+  && sed -i "s|^\(.*\)[\ ]\{1\}$|\1|g" ./patch_lib_rs.sh \
+  && echo "* * SH CONTENTS * *" \
+  && cat -n ./patch_lib_rs.sh \
   && chmod +x ./patch_lib_rs.sh && . ./patch_lib_rs.sh && rm -f ./patch_lib_rs.sh \
+  && echo "* * SH 1 * *" \
+  && cat -n ./examples/${EXAMPLE_CATEGORY}/${EXAMPLE_NAME}/src/lib.rs \
   && sed -i "\
-  s|^\(sycamore = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
-  s|^\(sycamore = { version = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
-  " ./examples/core/basic/Cargo.toml \
+  s|^\(sycamore = \"\)\([\^0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
+  s|^\(sycamore = { version = \"\)\([\^0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g;" \
+  ./examples/core/basic/Cargo.toml \
+  && echo "* * SED 4 * *" \
+  && cat -n ./examples/core/basic/Cargo.toml \
   && sed -i "\
-  s|^\(sycamore = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
-  s|^\(sycamore = { version = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
-  s|^\(sycamore-router = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
-  s|^\(sycamore-router = { version = \"\)\([0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
-  " ./examples/core/basic/.perseus/Cargo.toml
+  s|^\(sycamore = \"\)\([\^0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
+  s|^\(sycamore = { version = \"\)\([\^0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
+  s|^\(sycamore-router = \"\)\([\^0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g; \
+  s|^\(sycamore-router = { version = \"\)\([\^0-9\.beta-]\{3,\}\)\(.*\)$|\1=${SYCAMORE_VERSION}\3|g;" \
+  ./examples/core/basic/.perseus/Cargo.toml \
+  && echo "* * SED 5 * *" \
+  && cat -n ./examples/core/basic/.perseus/Cargo.toml
 
 # Create a build stage for `perseus-cli` that we can run in parallel.
 FROM framework as perseus-cli
@@ -264,7 +294,7 @@ COPY --from=perseus-size-opt /perseus-size-opt/ /perseus-size-opt/
 COPY --from=wasm-pack /wasm-pack/wasm-pack /usr/bin/
 
 # Work from the root of our app.
-WORKDIR /perseus/examples/comprehensive/tiny
+WORKDIR /perseus/examples/core/state_generation
 
 # Execute all necessary commands for deploying our app.
 RUN . /etc/profile && . /usr/local/cargo/env \
@@ -278,9 +308,9 @@ RUN . /etc/profile && . /usr/local/cargo/env \
   '  local line_num=$( grep -ne "clippy" $file_path | grep -Eo "^[^:]+" )' \
   '  if [ ! -z "${line_num}" ] && [ $line_num -ne 1 ]' \
   '  then' \
-  '    awk -i inplace '"\\" \
-  '    -v line_num=$line_num '"\\" \
-  '    -v inner_attr=$( sed "${line_num}q;d" $file_path | cut -d " " -f 1 ) '"\\" \
+  '    awk -i inplace \\ ' \
+  '    -v line_num=$line_num \\ ' \
+  '    -v inner_attr=$( sed "${line_num}q;d" $file_path | cut -d " " -f 1 ) \\ ' \
   '    "NR==1 { print inner_attr } NR!=line_num { print }" $file_path' \
   '  fi' \
   '}' \
@@ -304,7 +334,7 @@ FROM debian:stable-slim
 WORKDIR /app
 
 # Copy the app into its chosen install path.
-COPY --from=builder /perseus/examples/comprehensive/tiny/pkg /app/
+COPY --from=builder /perseus/examples/core/state_generation/pkg /app/
 
 # Bind the server to `localhost`.
 ENV PERSEUS_HOST=0.0.0.0
@@ -512,9 +542,9 @@ RUN . /etc/profile && . /usr/local/cargo/env \
   '  local line_num=$( grep -ne "clippy" $file_path | grep -Eo "^[^:]+" )' \
   '  if [ ! -z "${line_num}" ] && [ $line_num -ne 1 ]' \
   '  then' \
-  '    awk -i inplace '"\\" \
-  '    -v line_num=$line_num '"\\" \
-  '    -v inner_attr=$( sed "${line_num}q;d" $file_path | cut -d " " -f 1 ) '"\\" \
+  '    awk -i inplace \\ ' \
+  '    -v line_num=$line_num \\ ' \
+  '    -v inner_attr=$( sed "${line_num}q;d" $file_path | cut -d " " -f 1 ) \\ ' \
   '    "NR==1 { print inner_attr } NR!=line_num { print }" $file_path' \
   '  fi' \
   '}' \

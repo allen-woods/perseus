@@ -360,7 +360,6 @@ To build a container using the `Dockerfile`, navigate to the directory where the
 ```shellscript
 docker buildx build --no-cache \
 --build-arg PERSEUS_VERSION=0.3.5 \
---build-arg PERSEUS_SIZE_OPT_VERSION=0.1.9 \
 --tag="my-perseus-example:0.1.0" \
 -f Dockerfile .
 ```
@@ -396,8 +395,8 @@ ARG EXAMPLE_CATEGORY \
   CARGO_NET_GIT_FETCH_WITH_CLI
 
 # Export environment variables.
-ENV EXAMPLE_CATEGORY=${EXAMPLE_CATEGORY:-core} \
-  EXAMPLE_NAME=${EXAMPLE_NAME:-state_generation} \
+ENV EXAMPLE_CATEGORY=${EXAMPLE_CATEGORY:-demos} \
+  EXAMPLE_NAME=${EXAMPLE_NAME:-fetching} \
   PERSEUS_VERSION=${PERSEUS_VERSION:-0.3.4} \
   SYCAMORE_VERSION=${SYCAMORE_VERSION:-0.7.1} \
   WEE_ALLOC_VERSION=${WEE_ALLOC_VERSION:-0.4.5} \
@@ -528,7 +527,7 @@ COPY --from=perseus-cli /perseus/target/release/perseus /usr/bin/
 COPY --from=wasm-pack /wasm-pack/wasm-pack /usr/bin/
 
 # Work from the root of our app.
-WORKDIR /perseus/examples/core/state_generation
+WORKDIR /perseus/examples/demos/fetching
 
 # Execute all necessary commands for deploying our app.
 RUN . /etc/profile && . /usr/local/cargo/env \
@@ -568,7 +567,7 @@ FROM debian:stable-slim
 WORKDIR /app
 
 # Copy the app into its chosen install path.
-COPY --from=builder /perseus/examples/core/state_generation/pkg /app/
+COPY --from=builder /perseus/examples/demos/fetching/pkg /app/
 
 # Bind the server to `localhost`.
 ENV PERSEUS_HOST=0.0.0.0

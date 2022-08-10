@@ -55,7 +55,6 @@ RUN apt-get update \
   lsb-release \
   openssl \
   pkg-config \
-  shellcheck \
   && rustup target add ${WASM_TARGET}
 
 # Create a build stage for `binaryen` we can run in parallel.
@@ -210,7 +209,8 @@ COPY --from=wasm-pack /wasm-pack/wasm-pack /usr/bin/
 WORKDIR /perseus/examples/showcase
 
 # Patch in implementation of perseus-size-opt prior to deploying our app.
-RUN . /etc/profile && . /usr/local/cargo/env \
+RUN . /etc/profile \
+  && . /usr/local/cargo/env \
   && $( \
     LIB_RS="$(pwd)/src/lib.rs"; \
     PAD="\ \ \ \ "; \
@@ -257,14 +257,14 @@ RUN . /etc/profile && . /usr/local/cargo/env \
   ) \
   && PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig \
   && perseus deploy \
-  && esbuild ./pkg/dist/pkg/perseus_engine.js \
+  && esbuild "$(pwd)/pkg/dist/pkg/perseus_engine.js" \
   --minify \
-  --target=${ESBUILD_TARGET} \
-  --outfile=./pkg/dist/pkg/perseus_engine.js \
+  --target="${ESBUILD_TARGET}" \
+  --outfile="$(pwd)/pkg/dist/pkg/perseus_engine.js" \
   --allow-overwrite \
   && wasm-opt \
-  -Os ./pkg/dist/pkg/perseus_engine_bg.wasm \
-  -o ./pkg/dist/pkg/perseus_engine_bg.wasm
+  -Os "$(pwd)/pkg/dist/pkg/perseus_engine_bg.wasm" \
+  -o "$(pwd)/pkg/dist/pkg/perseus_engine_bg.wasm"
 
 # Prepare the final image where the app will be deployed.
 FROM debian:stable-slim

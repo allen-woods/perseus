@@ -53,6 +53,7 @@ RUN apt-get update \
   git \
   libssl-dev \
   lsb-release \
+  npm \
   openssl \
   pkg-config \
   && rustup target add "${WASM_TARGET}"
@@ -118,7 +119,16 @@ RUN . /etc/profile \
   && $( \
     NO_FETCHING_VERSION="0.3.0"; \
     FETCHING_VERSION="0.3.1"; \
+    LIB_RS="$(pwd)/packages/perseus/src/lib.rs"; \
     if [ "${PERSEUS_VERSION}" = "${NO_FETCHING_VERSION}" ]; then \
+      sed -i "\
+      s|^\(pub use http::Request as HttpRequest;\)$|\1\npub use wasm_bindgen_futures::spawn_local;|" \
+      "${LIB_RS}"; \
+      CMD_RS="$(pwd)/packages/perseus-cli/src/cmd.rs"; \
+      sed -i "\
+      s|^\(use std::process.*\)$|\1\nuse std::time::Duration;|; \
+      s|^\(.*spinner\.enable_steady_tick(\)[0-9]\{1,2\}\();\)$|\1Duration::from_millis(50)\2|;" \
+      "${CMD_RS}"; \
       mkdir -p "/perseus/examples/fetching"; \
       curl --progress-bar \
       -L "${SRC_URL}perseus${SRC_ROUTE}${FETCHING_VERSION}" \
@@ -143,15 +153,22 @@ RUN . /etc/profile \
     ) \
   && sed -i "${GREP_A},${GREP_B}d" "${PERSEUS_SIZE_OPT_TOML}" \
   && unset PERSEUS_SIZE_OPT_TOML && unset GREP_A && unset GREP_B \
-  && sed -i "\
-  s|HOST|PERSEUS_HOST|g; \
-  s|PORT|PERSEUS_PORT|g;" "$(pwd)/packages/perseus-cli/src/parse.rs" \
-  && sed -i "\
-  s|HOST|PERSEUS_HOST|g; \
-  s|PORT|PERSEUS_PORT|g;" "$(pwd)/packages/perseus-cli/src/serve.rs" \
-  && sed -i "\
-  s|HOST|PERSEUS_HOST|g; \
-  s|PORT|PERSEUS_PORT|g;" "$(pwd)/examples/basic/.perseus/server/src/main.rs" \
+  && $( \
+    RS_FILES="$(pwd)/packages/perseus-cli/src/parse.rs"; \
+    RS_FILES="${RS_FILES} $(pwd)/packages/perseus-cli/src/serve.rs"; \
+    RS_FILES="${RS_FILES} $(pwd)/examples/basic/.perseus/server/src/main.rs"; \
+    for RS in $RS_FILES; do \
+      HAS_PERSEUS_HOST=$( grep -ne "PERSEUS_HOST" "${RS}" | grep -Eo "^[^:]+" ); \
+      if [ -n "${HAS_PERSEUS_HOST}" ]; then \
+        sed -i "s|HOST|PERSEUS_HOST|g;" "${RS}"; \
+      fi; \
+      HAS_PERSEUS_PORT=$( grep -ne "PERSEUS_PORT" "${RS}" | grep -Eo "^[^:]+" ); \
+      if [ -n "${HAS_PERSEUS_PORT}" ]; then \
+        sed -i "s|PORT|PERSEUS_PORT|g;" "${RS}"; \
+      fi; \
+    done; \
+    unset RS_FILES && unset RS && unset HAS_PERSEUS_HOST && unset HAS_PERSEUS_PORT; \
+  ) \
   && mkdir -p /tmp/cargo_toml \
   && touch /tmp/cargo_toml/list \
   && find "$(pwd)" -maxdepth 4 -type d -print0 \
@@ -186,10 +203,6 @@ RUN . /etc/profile \
   && unset RX_PATH && unset RX_VERS && unset RX_FEAT && unset RX_OPTN && unset RX_C \
   && unset RX_SIZE_OPT && unset RX_PERSEUS && unset RX_SYCAMORE \
   && rm -rf /tmp/cargo_toml \
-  && sed -i "\
-  s|^\(use std::process.*\)$|\1\nuse std::time::Duration;|; \
-  s|^\(.*spinner\.enable_steady_tick(\)[0-9]\{1,2\}\();\)$|\1Duration::from_millis(50)\2|;" \
-  "$(pwd)/packages/perseus-cli/src/cmd.rs" \
   && sed -i "\
   s|\(cargo build\)|\1 --bin perseus --release|; \
   s|\`|'|g;" "$(pwd)/bonnie.toml"
@@ -448,15 +461,22 @@ RUN . /etc/profile \
     ) \
   && sed -i "${GREP_A},${GREP_B}d" "${PERSEUS_SIZE_OPT_TOML}" \
   && unset PERSEUS_SIZE_OPT_TOML && unset GREP_A && unset GREP_B \
-  && sed -i "\
-  s|HOST|PERSEUS_HOST|g; \
-  s|PORT|PERSEUS_PORT|g;" "$(pwd)/packages/perseus-cli/src/parse.rs" \
-  && sed -i "\
-  s|HOST|PERSEUS_HOST|g; \
-  s|PORT|PERSEUS_PORT|g;" "$(pwd)/packages/perseus-cli/src/serve.rs" \
-  && sed -i "\
-  s|HOST|PERSEUS_HOST|g; \
-  s|PORT|PERSEUS_PORT|g;" "$(pwd)/examples/basic/.perseus/server/src/main.rs" \
+  && $( \
+    RS_FILES="$(pwd)/packages/perseus-cli/src/parse.rs"; \
+    RS_FILES="${RS_FILES} $(pwd)/packages/perseus-cli/src/serve.rs"; \
+    RS_FILES="${RS_FILES} $(pwd)/examples/basic/.perseus/server/src/main.rs"; \
+    for RS in $RS_FILES; do \
+      HAS_PERSEUS_HOST=$( grep -ne "PERSEUS_HOST" "${RS}" | grep -Eo "^[^:]+" ); \
+      if [ -n "${HAS_PERSEUS_HOST}" ]; then \
+        sed -i "s|HOST|PERSEUS_HOST|g;" "${RS}"; \
+      fi; \
+      HAS_PERSEUS_PORT=$( grep -ne "PERSEUS_PORT" "${RS}" | grep -Eo "^[^:]+" ); \
+      if [ -n "${HAS_PERSEUS_PORT}" ]; then \
+        sed -i "s|PORT|PERSEUS_PORT|g;" "${RS}"; \
+      fi; \
+    done; \
+    unset RS_FILES && unset RS && unset HAS_PERSEUS_HOST && unset HAS_PERSEUS_PORT; \
+  ) \
   && mkdir -p /tmp/cargo_toml \
   && touch /tmp/cargo_toml/list \
   && find "$(pwd)" -maxdepth 4 -type d -print0 \
